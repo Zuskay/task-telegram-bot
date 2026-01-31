@@ -10,13 +10,13 @@ class Settings:
 
     def __init__(self) -> None:
         """ Initialize settings from environment variables """
-        self.telegram_token: str = os.gotenv("TELEGRAM_TOKEN","")
-        self.openai_api_key: str = os.gotenv("OPENAI_API_KEY","")
-        self.ngrok_authtoken: str = os.gotenv("NGROK_AUTHTOKEN","")
-        self.redis_url: str = os.gotenv("REDIS_URL","redis://localhost:6379/0")
+        self.telegram_token: str = os.getenv("TELEGRAM_TOKEN","")
+        self.openai_api_key: str = os.getenv("OPENAI_API_KEY","")
+        self.ngrok_authtoken: str = os.getenv("NGROK_AUTHTOKEN","")
+        self.redis_url: str = os.getenv("REDIS_URL","redis://localhost:6379/0")
         
         # Validate required settings
-        self._validate_setting()
+        self._validate_settings()
     
     def _validate_settings(self) -> None:
         """ Validate that all required settings are present """

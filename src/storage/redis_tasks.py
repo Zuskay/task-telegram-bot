@@ -1,7 +1,6 @@
 import json
-import uuid
+import redis
 from typing import List, Dict, Any, Optional
-import redis.asyncio as redis
 
 class RedisTasks:
     """ Redis-based task storage with per-user isolation"""
@@ -10,20 +9,20 @@ class RedisTasks:
         """ Initialize Redis connection.
 
         Args:
-            redis_url:Redis connection URL
+            redis_url: Redis connection URL
         """
 
         self.redis_url = redis_url
         self._redis_client: Optional[redis.Redis] = None
 
-    async def _get_redis_(self) -> redis.Redis:
+    def _get_redis(self) -> redis.Redis:
         """ Get redis connection """
 
         if self._redis_client is None:
             self._redis_client = redis.from_url(self.redis_url, decode_responses=True)
         return self._redis_client
     
-    def _get_user_key(self,user_id: str) -> str:
+    def _get_user_key(self, user_id: str) -> str:
         """ Generate redis key for user's tasks.
         
         Args:
@@ -45,7 +44,7 @@ class RedisTasks:
         """  
         return f"tasks:{user_id}:next_id"  
       
-    async def add_task(self, user_id: str, title: str, description: str, completed: bool) -> int:  
+    def add_task(self, user_id: str, title: str, description: str, completed: bool) -> int:  
         """Add a new task for the user.  
           
         Args:  
@@ -57,12 +56,12 @@ class RedisTasks:
         Returns:  
             New task ID  
         """  
-        client = await self._get_redis()  
+        client = self._get_redis()  
         user_key = self._get_user_key(user_id)  
         next_id_key = self._get_next_id_key(user_id)  
           
         # Get next task ID (auto-incremental)  
-        task_id = await client.incr(next_id_key)  
+        task_id = client.incr(next_id_key)  
           
         # Create task object  
         task = {  
@@ -73,18 +72,18 @@ class RedisTasks:
         }  
           
         # Get existing tasks  
-        tasks_json = await client.get(user_key)  
+        tasks_json = client.get(user_key)  
         tasks = json.loads(tasks_json) if tasks_json else []  
           
         # Add new task  
         tasks.append(task)  
           
         # Save back to Redis  
-        await client.set(user_key, json.dumps(tasks))  
+        client.set(user_key, json.dumps(tasks))  
           
         return task_id  
       
-    async def get_tasks(self, user_id: str) -> List[Dict[str, Any]]:  
+    def get_tasks(self, user_id: str) -> List[Dict[str, Any]]:  
         """Get all tasks for the user.  
           
         Args:  
@@ -93,14 +92,19 @@ class RedisTasks:
         Returns:  
             List of tasks  
         """  
-        client = await self._get_redis()  
-        user_key = self._get_user_key(user_id)  
-          
-        tasks_json = await client.get(user_key)  
-        return json.loads(tasks_json) if tasks_json else []  
+        try:
+            client = self._get_redis()  
+            user_key = self._get_user_key(user_id)  
+              
+            tasks_json = client.get(user_key)
+            if not tasks_json:
+                return []
+            return json.loads(tasks_json)
+        except Exception:
+            return []  
       
-    async def update_task(self, user_id: str, task_id: int, title: Optional[str] = None,  
-                         description: Optional[str] = None, completed: Optional[bool] = None) -> bool:  
+    def update_task(self, user_id: str, task_id: int, title: Optional[str] = None,  
+                    description: Optional[str] = None, completed: Optional[bool] = None) -> bool:  
         """Update an existing task.  
           
         Args:  
@@ -113,11 +117,11 @@ class RedisTasks:
         Returns:  
             True if task was updated, False if not found  
         """  
-        client = await self._get_redis()  
+        client = self._get_redis()  
         user_key = self._get_user_key(user_id)  
           
         # Get existing tasks  
-        tasks_json = await client.get(user_key)  
+        tasks_json = client.get(user_key)  
         if not tasks_json:  
             return False  
           
@@ -134,12 +138,12 @@ class RedisTasks:
                     task["completed"] = completed  
                   
                 # Save updated tasks  
-                await client.set(user_key, json.dumps(tasks))  
+                client.set(user_key, json.dumps(tasks))  
                 return True  
           
         return False  
       
-    async def delete_task(self, user_id: str, task_id: int) -> bool:  
+    def delete_task(self, user_id: str, task_id: int) -> bool:  
         """Delete a task by ID.  
           
         Args:  
@@ -149,11 +153,11 @@ class RedisTasks:
         Returns:  
             True if task was deleted, False if not found  
         """  
-        client = await self._get_redis_()  
+        client = self._get_redis()  
         user_key = self._get_user_key(user_id)  
           
         # Get existing tasks  
-        tasks_json = await client.get(user_key)  
+        tasks_json = client.get(user_key)  
         if not tasks_json:  
             return False  
           
@@ -167,11 +171,11 @@ class RedisTasks:
             return False  # Task not found  
           
         # Save updated tasks  
-        await client.set(user_key, json.dumps(tasks))  
+        client.set(user_key, json.dumps(tasks))  
         return True  
       
-    async def close(self) -> None:  
+    def close(self) -> None:  
         """Close Redis connection."""  
         if self._redis_client:  
-            await self._redis_client.close()
+            self._redis_client.close()
     
